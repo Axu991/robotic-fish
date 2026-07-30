@@ -1,6 +1,6 @@
 /** 
  * @file can_servo_driver.c
- * @brief Implementation file for the CAN servo driver.
+ * @brief CAN 舵机驱动实现，舵机型号为 KingmaxBLS4510S
  * @author huangxu <huangxu2024@shanghaitech.edu.cn>
  * @date 2026-07-30
  * @version 1.0
@@ -64,7 +64,6 @@ bool can_servo_init(gpio_num_t tx_pin, gpio_num_t rx_pin)
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(tx_pin, rx_pin, TWAI_MODE_NORMAL);
     twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
     twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-
 
     esp_err_t ret = twai_driver_install(&g_config, &t_config, &f_config);
     if (ret != ESP_OK)

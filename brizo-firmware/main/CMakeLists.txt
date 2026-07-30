@@ -3,6 +3,7 @@ idf_component_register(SRCS
     "drivers/led_driver.c"
     "drivers/adc_driver.c"
     "drivers/can_servo_driver.c"
+    "drivers/imu901_driver.c"
     INCLUDE_DIRS 
     "."
     "./drivers"

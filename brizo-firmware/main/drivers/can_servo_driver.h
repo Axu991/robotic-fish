@@ -1,6 +1,6 @@
 /** 
  * @file can_servo_driver.h
- * @brief Header file for the CAN servo driver.
+ * @brief CAN 舵机驱动头文件, 舵机型号为 KingmaxBLS4510S
  * @author huangxu <huangxu2024@shanghaitech.edu.cn>
  * @date 2026-07-30
  * @version 1.0
@@ -13,7 +13,7 @@
 #include <stdbool.h>
 #include "driver/gpio.h"
 
-ifdef __cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -69,5 +69,7 @@ int can_servo_read_all_feedback(servo_feedback_t *fb, int count);
 
 #ifdef __cplusplus
 }#endif
+
+#endif 
 
 #endif // CAN_SERVO_DRIVER_H
