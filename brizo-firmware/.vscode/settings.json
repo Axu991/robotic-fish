@@ -1,0 +1,12 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "idf.extensionActivationMode": "always",
+  "clangd.path": "/Users/huangxu/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=/Users/huangxu/Documents/GitHub/brizo/brizo-firmware/build"
+  ],
+  "idf.currentSetup": "/Users/huangxu/.espressif/v5.5.3/esp-idf",
+  "idf.customExtraVars": {}
+}
