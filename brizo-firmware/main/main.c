@@ -5,30 +5,59 @@
 #include "driver/gpio.h"
 
 #include "drivers/led_driver.h"
+#include "drivers/adc_driver.h"
 
 #define LED_PIN GPIO_NUM_17
-static const char *TAG = "LED_TEST";
+#define ADC_PIN GPIO_NUM_16
+
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "Starting LED test...");
-
-    ESP_LOGI(TAG, "Initializing LED driver...");
-    led_init(LED_PIN);
-    vTaskDelay(pdMS_TO_TICKS(500));
     
-    ESP_LOGI(TAG, "Turning LED on...");
-    led_set(true);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    ESP_LOGI(TAG, "Turning LED off...");
-    led_set(false);
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    while (1) {
-        ESP_LOGI(TAG, "Toggling LED state...");
-        led_toggle();
-        ESP_LOGI(TAG, "LED state: %s", led_get_state() ? "ON" : "OFF");
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
 }
+
+
+// static const char *TAG = "MAIN";
+// void adc_test(void)
+// {
+//     led_init(LED_PIN);
+//     adc_init(ADC_PIN);
+//     ESP_LOGI(TAG, "LED and ADC drivers initialized successfully.");
+
+//     while (1)
+//     {
+//         int mv = adc_read_millvoltage();
+//         float v = adc_read_voltage();
+//         ESP_LOGI(TAG, "ADC Reading: %d mV, %.2f V", mv, v);
+        
+//         led_toggle();
+//         vTaskDelay(pdMS_TO_TICKS(1000));
+//     }
+    
+// }
+
+
+// static const char *TAG = "LED_TEST";
+// void led_test(void)
+// {
+//     ESP_LOGI(TAG, "Starting LED test...");
+
+//     ESP_LOGI(TAG, "Initializing LED driver...");
+//     led_init(LED_PIN);
+//     vTaskDelay(pdMS_TO_TICKS(500));
+    
+//     ESP_LOGI(TAG, "Turning LED on...");
+//     led_set(true);
+//     vTaskDelay(pdMS_TO_TICKS(1000));
+
+//     ESP_LOGI(TAG, "Turning LED off...");
+//     led_set(false);
+//     vTaskDelay(pdMS_TO_TICKS(1000));
+
+//     while (1) {
+//         ESP_LOGI(TAG, "Toggling LED state...");
+//         led_toggle();
+//         ESP_LOGI(TAG, "LED state: %s", led_get_state() ? "ON" : "OFF");
+//         vTaskDelay(pdMS_TO_TICKS(1000));
+//     }
+// }
