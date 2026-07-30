@@ -8,5 +8,13 @@
     "--compile-commands-dir=/Users/huangxu/Documents/GitHub/brizo/brizo-firmware/build"
   ],
   "idf.currentSetup": "/Users/huangxu/.espressif/v5.5.3/esp-idf",
-  "idf.customExtraVars": {}
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32s3"
+  },
+  "idf.flashType": "UART",
+  "idf.port": "/dev/tty.usbmodem1101",
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.monitorPort": "/dev/tty.usbmodem1101"
 }
