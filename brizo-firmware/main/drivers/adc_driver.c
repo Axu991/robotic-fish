@@ -76,7 +76,6 @@ int adc_read_millvoltage(void)
     }
     else
     {
-        // 如果校准失败，使用默认的线性转换（假设 12 位 ADC，3.9V 最大输入电压）
         voltage_mv = (raw * 3300) / 4095; // 3.3V 对应 4095
     }
     return voltage_mv;
