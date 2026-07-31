@@ -4,8 +4,10 @@ idf_component_register(SRCS
     "drivers/adc_driver.c"
     "drivers/can_servo_driver.c"
     "drivers/imu901_driver.c"
-    "protocols/crsf_driver.c"
-    "protocols/udp_driver.c"
+    "drivers/crsf_driver.c"
+    "drivers/udp_driver.c"
+    "protocols/downward_parser.c"
+    "protocols/upward_packer.c"
     INCLUDE_DIRS 
     "."
     "./drivers"
