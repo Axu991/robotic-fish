@@ -58,7 +58,7 @@ main/protocols/    downward 解析与 upward 打包
 
 ## 控制模式
 
-CRSF 原始通道值会先限制到 `1000..2000`，然后按旧版固件逻辑转换为 `3000 - value`。
+CRSF 原始通道值会先限制到 `1000..2000`，然后逻辑转换为 `3000 - value`。
 
 | 通道 | 条件 | 行为 |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ UDP 默认使用以下端口：
 
 WiFi 和目标 IP 配置位于 `main/main.c` 的 `udp_configs` 数组。固件按数组顺序尝试连接，成功后创建一个 UDP socket，同时用于接收控制指令和发送遥测。
 
-SSID、密码和目标 IP 当前直接写在源代码中。部署到其他环境前应修改配置；正式发布时建议改为 menuconfig、NVS 或受控的本地配置文件，避免提交真实凭据。
+SSID、密码和目标 IP 当前直接写在源代码中。部署到其他环境前应修改配置。
 
 ## 通信协议
 
@@ -134,18 +134,6 @@ frame.append(sum(frame[2:]) & 0xFF)
 
 完整上行帧长度为 89 bytes。上位机可使用格式字符串 `<3i3f3f3i3f3f3f` 解包 84-byte payload。
 
-## 与旧版 `.ino` 的兼容性
-
-控制算法、引脚、WiFi 列表、UDP 端口、CRSF 映射、舵机 ID、CPG 参数和重放轨迹均参考旧版 Arduino 固件迁移，但网络报文不再兼容旧版裸结构体格式：
-
-- 旧版下行直接发送 24-byte `theta + speed`；当前要求 33-byte 完整协议帧。
-- 旧版上行直接发送 84-byte 遥测结构体；当前发送 89-byte 带帧头和校验的协议帧。
-- 当前增加了 UDP/CRSF 超时归零、非有限浮点数检查和关节限幅。
-- 当前未实现旧版 `ArduinoOTA` 功能。
-- 当前尚未实现旧版主循环中的 TWAI bus-off 自动重装逻辑。
-
-因此，继续使用旧上位机程序时，必须同步升级其收发协议。
-
 ## 构建与烧录
 
 要求：
@@ -153,23 +141,6 @@ frame.append(sum(frame[2:]) & 0xFF)
 - ESP-IDF 5.x，当前工程目标为 ESP32-S3
 - 支持 ESP32-S3 的 USB 串口驱动和数据线
 - 4 MB Flash 配置
-
-先加载 ESP-IDF 环境，再在仓库根目录执行：
-
-```bash
-. /path/to/esp-idf/export.sh
-idf.py build
-idf.py -p /dev/cu.usbmodemXXXX flash monitor
-```
-
-Linux 串口通常为 `/dev/ttyUSB0` 或 `/dev/ttyACM0`。退出串口监视器使用 `Ctrl+]`。
-
-首次切换芯片目标时可执行：
-
-```bash
-idf.py set-target esp32s3
-idf.py build
-```
 
 ## 联调检查
 
@@ -179,11 +150,3 @@ idf.py build
 4. 检查舵机角度是否受到正负 60 度限制；停止发送 500 ms 后应回到零位。
 5. 在上位机检查 89-byte 上行帧的帧头、长度和校验和，再解析遥测 payload。
 6. 切换 CH7、CH5、CH9 和 CH10，分别验证 UDP、CPG、AHC 和动作重放。
-
-## 已知限制
-
-- WiFi 配置和凭据尚未从应用代码中分离。
-- UDP 协议直接复制 packed C 结构体，默认依赖小端 IEEE 754 平台；跨平台实现应显式编码每个字段。
-- `target_speed` 和下行时间戳尚未参与执行控制。
-- OTA、TWAI bus-off 自动恢复和运行时 WiFi 配置尚未迁移。
-- 最终发布前仍需在实机上验证舵机方向、机械零位、ADC 温度换算和失控保护。
