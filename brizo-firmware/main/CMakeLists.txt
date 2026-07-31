@@ -1,17 +1,25 @@
-idf_component_register(SRCS 
-    "main.c"
-    "drivers/led_driver.c"
-    "drivers/adc_driver.c"
-    "drivers/can_servo_driver.c"
-    "drivers/imu901_driver.c"
-    "drivers/crsf_driver.c"
-    "drivers/udp_driver.c"
-    "protocols/downward_parser.c"
-    "protocols/upward_packer.c"
-    "app/cpg_gait.c"
+idf_component_register(
+    SRCS 
+        "main.c"
+        "drivers/led_driver.c"
+        "drivers/adc_driver.c"
+        "drivers/can_servo_driver.c"
+        "drivers/imu901_driver.c"
+        "drivers/crsf_driver.c"
+        "drivers/udp_driver.c"
+        "protocols/downward_parser.c"
+        "protocols/upward_packer.c"
+        "app/cpg_gait.c"
+        "app/rc_controller.c"
     INCLUDE_DIRS 
-    "."
-    "./drivers"
-    "./protocols"
-    "./app"
+        "."
+        "drivers"
+        "protocols"
+        "app"
+    REQUIRES
+        driver
+        esp_adc
+        freertos
+        nvs_flash
+        esp_wifi
 )

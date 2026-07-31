@@ -66,7 +66,6 @@ void cpg_gait_init(cpg_handle_t *cpg, float dt_s)
 void cpg_gait_trigger_replay(cpg_handle_t *cpg, int direction)
 {
     if (cpg == NULL) return;
-    cpg->replay_status = true; // 兼容旧标记名称逻辑
     cpg->replay_active = true;
     cpg->replay_direction = (direction >= 0) ? 1 : -1;
     cpg->replay_frame_index = 0;
