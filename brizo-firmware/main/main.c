@@ -1,57 +1,66 @@
 #include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "driver/gpio.h"
-#include "driver/uart.h"
-
-// ESP32-S3 ROM 矩阵重映射头文件
-#include "esp_rom_gpio.h"
-#include "soc/gpio_sig_map.h"
-
-#include "drivers/led_driver.h"
-#include "drivers/imu901_driver.h"
-
-#define LED_PIN        GPIO_NUM_17
-
-#define IMU_UART_NUM   UART_NUM_1
-#define IMU_TX_PIN     GPIO_NUM_6   // ESP32-S3 TX -> 接 IMU RX
-#define IMU_RX_PIN     GPIO_NUM_7   // ESP32-S3 RX -> 接 IMU TX
-#define IMU_BAUDRATE   115200
+#include "nvs_flash.h"
+#include "esp_netif.h"
+#include "esp_event.h"
+#include "protocols/udp_driver.h"
 
 static const char *TAG = "MAIN";
 
+// WiFi/UDP 配置列表
+wifi_udp_info_t wifi_configs[] = {
+    {
+        .ssid = "iPhone",
+        .password = "66668888",
+        .local_port = 2333,
+        .remote_port = 6060,
+        .remote_ip = 0   // 填 0 会自动解析为网关 IP (iPhone 热点本机 IP)
+    }
+};
+
 void app_main(void)
 {
-    ESP_LOGI(TAG, "正在初始化系统...");
+    // 1. 初始化 NVS Flash
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
 
-    // 1. 初始化 LED (若有驱动)
-    // led_init(LED_PIN);
+    // 2. 初始化底层网络堆栈与默认事件循环
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    // 2. 初始化 IMU901 (自动完成引脚映射与串口启动)
-    imu_init(IMU_UART_NUM, IMU_TX_PIN, IMU_RX_PIN, IMU_BAUDRATE);
+    // 3. 初始化 UDP 驱动
+    int config_count = sizeof(wifi_configs) / sizeof(wifi_configs[0]);
+    if (!udp_driver_init(wifi_configs, config_count)) {
+        ESP_LOGE(TAG, "UDP driver initialization failed!");
+        return;
+    }
+    ESP_LOGI(TAG, "UDP system ready!");
 
-    // 数据接收结构体
-    attitude_t attitude;
-    gyroAcc_t gyro_acc;
+    // 4. 测试发送首个数据包
+    const char *test_msg = "Hello from ESP32-S3!";
+    udp_send_packet((const uint8_t *)test_msg, strlen(test_msg));
 
-    ESP_LOGI(TAG, "开始读取 IMU 数据...");
-
+    // 5. 数据接收与轮询循环
+    uint8_t rx_buffer[256];
     while (1) {
-        // 读取欧拉角 (Roll, Pitch, Yaw)
-        if (imu_get_attitude(&attitude)) {
-            ESP_LOGI(TAG, "[姿态角] Roll: %6.2f° | Pitch: %6.2f° | Yaw: %6.2f°",
-                     attitude.roll, attitude.pitch, attitude.yaw);
+        int len = udp_receive_packet(rx_buffer, sizeof(rx_buffer) - 1);
+        if (len > 0) {
+            rx_buffer[len] = '\0';
+            ESP_LOGI(TAG, "Received packet (%d bytes): %s", len, rx_buffer);
+            
+            // 收到数据后回传 ACK 响应
+            const char *ack_msg = "ACK";
+            udp_send_packet((const uint8_t *)ack_msg, strlen(ack_msg));
         }
-
-        // 读取加速度与角速度
-        if (imu_get_gyro_acc(&gyro_acc)) {
-            ESP_LOGI(TAG, "[加速度] X:%5.2fg  Y:%5.2fg  Z:%5.2fg | [陀螺仪] X:%6.1f°/s Y:%6.1f°/s Z:%6.1f°/s",
-                     gyro_acc.faccG[0], gyro_acc.faccG[1], gyro_acc.faccG[2],
-                     gyro_acc.fgyroD[0], gyro_acc.fgyroD[1], gyro_acc.fgyroD[2]);
-        }
-
-        // 每 100ms 刷新打印一次 (10Hz 频率)
-        vTaskDelay(pdMS_TO_TICKS(20));
+        
+        // 由于 udp_receive_packet 内部自带 100ms 超时让出 CPU，此处可以适当减小或保留任务延时
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
