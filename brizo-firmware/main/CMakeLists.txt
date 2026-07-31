@@ -4,7 +4,9 @@ idf_component_register(SRCS
     "drivers/adc_driver.c"
     "drivers/can_servo_driver.c"
     "drivers/imu901_driver.c"
+    "protocols/crsf_driver.c"
     INCLUDE_DIRS 
     "."
     "./drivers"
+    "./protocols"
 )
