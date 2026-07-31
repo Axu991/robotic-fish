@@ -8,8 +8,10 @@ idf_component_register(SRCS
     "drivers/udp_driver.c"
     "protocols/downward_parser.c"
     "protocols/upward_packer.c"
+    "app/cpg_gait.c"
     INCLUDE_DIRS 
     "."
     "./drivers"
     "./protocols"
+    "./app"
 )
