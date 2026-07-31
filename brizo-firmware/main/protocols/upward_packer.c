@@ -29,7 +29,8 @@ bool upward_pack_custom(uint8_t msg_id, const uint8_t *payload, uint8_t payload_
     if (out_buf == NULL || out_len == NULL) {
         return false;
     }
-    if (payload_len > UPWARD_MAX_PAYLOAD_LEN) {
+    if (payload_len > UPWARD_MAX_PAYLOAD_LEN
+            || (payload_len > 0 && payload == NULL)) {
         return false; // 数据超出缓冲区界限
     }
 

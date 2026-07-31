@@ -11,6 +11,7 @@ idf_component_register(
         "protocols/upward_packer.c"
         "app/cpg_gait.c"
         "app/rc_controller.c"
+        "app/robot_app.c"
     INCLUDE_DIRS 
         "."
         "drivers"
@@ -21,5 +22,8 @@ idf_component_register(
         esp_adc
         freertos
         nvs_flash
+        esp_event
+        esp_netif
+        esp_timer
         esp_wifi
 )

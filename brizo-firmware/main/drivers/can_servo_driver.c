@@ -9,11 +9,16 @@
 #include "can_servo_driver.h"
 #include "esp_log.h"
 #include "driver/twai.h"
+#include "freertos/semphr.h"
 #include <string.h>
 
 static const char *TAG = "CAN_SERVO";
 
 static bool twai_initialized = false;
+static SemaphoreHandle_t s_twai_mutex = NULL;
+
+#define TWAI_TX_TIMEOUT_TICKS       1
+#define TWAI_RESPONSE_TIMEOUT_TICKS 1
 
 // 内部辅助函数：发送 CAN 消息（带重试）
 static bool twai_transmit_with_retry(const twai_message_t *msg, TickType_t timeout_ticks)
@@ -52,6 +57,13 @@ static bool twai_receive_with_timeout(twai_message_t *msg, TickType_t timeout_ti
 
 bool can_servo_init(gpio_num_t tx_pin, gpio_num_t rx_pin)
 {   
+    if (s_twai_mutex == NULL) {
+        s_twai_mutex = xSemaphoreCreateMutex();
+        if (s_twai_mutex == NULL) {
+            ESP_LOGE(TAG, "Failed to create TWAI mutex");
+            return false;
+        }
+    }
     if (twai_initialized)
     {   
         ESP_LOGW(TAG, "TWAI driver already initialized");
@@ -101,7 +113,10 @@ bool can_servo_set_position(uint8_t node_id, float position_deg)
             0x00, 0x00
         }
     };
-    return twai_transmit_with_retry(&tx_msg, pdMS_TO_TICKS(100));
+    xSemaphoreTake(s_twai_mutex, portMAX_DELAY);
+    bool ok = twai_transmit_with_retry(&tx_msg, TWAI_TX_TIMEOUT_TICKS);
+    xSemaphoreGive(s_twai_mutex);
+    return ok;
 }
 
 bool can_servo_get_position(uint8_t node_id, float *position)
@@ -112,6 +127,8 @@ bool can_servo_get_position(uint8_t node_id, float *position)
         return false;
     }
 
+    xSemaphoreTake(s_twai_mutex, portMAX_DELAY);
+
     // 发送读取位置命令
     twai_message_t tx_msg = 
     {
@@ -120,18 +137,19 @@ bool can_servo_get_position(uint8_t node_id, float *position)
         .data = {0x40, 0x02, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00}
     };
 
-    if (!twai_transmit_with_retry(&tx_msg, pdMS_TO_TICKS(100)))
+    if (!twai_transmit_with_retry(&tx_msg, TWAI_TX_TIMEOUT_TICKS))
     {
+        xSemaphoreGive(s_twai_mutex);
         return false;
     }
 
     // 接收响应(预期 ID: 0x0580 + node_id)
     twai_message_t rx_msg;
     TickType_t start_tick = xTaskGetTickCount();
-    const TickType_t timeout= pdMS_TO_TICKS(200);
+    const TickType_t timeout = TWAI_RESPONSE_TIMEOUT_TICKS;
     while (xTaskGetTickCount() - start_tick < timeout)
     {
-        if (twai_receive_with_timeout(&rx_msg, pdMS_TO_TICKS(50)))
+        if (twai_receive_with_timeout(&rx_msg, TWAI_RESPONSE_TIMEOUT_TICKS))
         {
             if (rx_msg.identifier == (0x0580 + node_id) && 
                 rx_msg.data_length_code == 8 &&
@@ -142,17 +160,20 @@ bool can_servo_get_position(uint8_t node_id, float *position)
                     //解析位置
                     int16_t raw = (int16_t)(rx_msg.data[5] << 8 | rx_msg.data[4]);
                     *position = raw / 10.0f; // 转换回度
+                    xSemaphoreGive(s_twai_mutex);
                     return true;
                 }   
         }
     }
     ESP_LOGE(TAG, "Timeout waiting for position response from node 0x%02X", node_id);
+    xSemaphoreGive(s_twai_mutex);
     return false;
 }
 
 bool can_servo_get_current(uint8_t node_id, float *current, int16_t *temperature)
 {
     if (current == NULL) return false;
+    xSemaphoreTake(s_twai_mutex, portMAX_DELAY);
     
     // 发送读取电流命令
     twai_message_t tx_msg = 
@@ -162,18 +183,19 @@ bool can_servo_get_current(uint8_t node_id, float *current, int16_t *temperature
         .data = {0x40, 0x05, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00}
     };
 
-    if (!twai_transmit_with_retry(&tx_msg, pdMS_TO_TICKS(100)))
+    if (!twai_transmit_with_retry(&tx_msg, TWAI_TX_TIMEOUT_TICKS))
     {
+        xSemaphoreGive(s_twai_mutex);
         return false;
     }
 
     // 接收响应(预期 ID: 0x0580 + node_id)
     twai_message_t rx_msg;
     TickType_t start_tick = xTaskGetTickCount();
-    const TickType_t timeout= pdMS_TO_TICKS(200);
+    const TickType_t timeout = TWAI_RESPONSE_TIMEOUT_TICKS;
     while (xTaskGetTickCount() - start_tick < timeout)
     {
-        if (twai_receive_with_timeout(&rx_msg, pdMS_TO_TICKS(50)))
+        if (twai_receive_with_timeout(&rx_msg, TWAI_RESPONSE_TIMEOUT_TICKS))
         {
             if (rx_msg.identifier == (0x0580 + node_id) && 
                 rx_msg.data_length_code == 8 &&
@@ -188,11 +210,13 @@ bool can_servo_get_current(uint8_t node_id, float *current, int16_t *temperature
                     {
                         *temperature = (int16_t)rx_msg.data[6]; // 温度直接使用原始值
                     }
+                    xSemaphoreGive(s_twai_mutex);
                     return true;
                 }   
         }
     }
     ESP_LOGE(TAG, "Timeout waiting for current response from node 0x%02X", node_id);
+    xSemaphoreGive(s_twai_mutex);
     return false;
 }
 

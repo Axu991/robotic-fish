@@ -90,8 +90,6 @@ void cpg_gait_update(cpg_handle_t *cpg, float out_joint_angles_rad[CPG_JOINTS_NU
     }
 
     // 2. 正常 CPG 微分方程数值解算
-    float p__[CPG_JOINTS_NUM] = {0.0f};
-
     // 状态积分更新
     for (int i = 0; i < CPG_JOINTS_NUM; i++) {
         cpg->r[i] += cpg->r_[i] * cpg->dt;
@@ -103,17 +101,17 @@ void cpg_gait_update(cpg_handle_t *cpg, float out_joint_angles_rad[CPG_JOINTS_NU
     for (int i = 0; i < CPG_JOINTS_NUM; i++) {
         cpg->r_[i] = cpg->C_r * (cpg->R[i] - cpg->r[i]);
         cpg->x_[i] = cpg->C_x * (cpg->X[i] - cpg->x[i]);
+        cpg->p_[i] += cpg->p_accel[i] * cpg->dt;
     }
 
     // 相位加速度 p__ 耦合解算
     for (int i = 0; i < CPG_JOINTS_NUM; i++) {
-        p__[i] = 0.0f;
+        cpg->p_accel[i] = 0.0f;
         for (int j = 0; j < CPG_JOINTS_NUM; j++) {
             if (i != j) {
-                p__[i] += (cpg->C_p * (cpg->C_p * (cpg->p[j] - cpg->p[i] - cpg->P[i][j]) - 2.0f * (cpg->p_[i] - 2.0f * M_PI * cpg->f)));
+                cpg->p_accel[i] += (cpg->C_p * (cpg->C_p * (cpg->p[j] - cpg->p[i] - cpg->P[i][j]) - 2.0f * (cpg->p_[i] - 2.0f * M_PI * cpg->f)));
             }
         }
-        cpg->p_[i] += p__[i] * cpg->dt;
     }
 
     // 输出相位波形叠加

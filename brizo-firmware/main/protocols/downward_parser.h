@@ -22,6 +22,8 @@ extern "C" {
 #define DOWNWARD_FRAME_HEADER2   0x66
 
 #define DOWNWARD_SERVO_NUMS      3
+#define DOWNWARD_MAX_PAYLOAD_LEN 64
+#define DOWNWARD_MAX_PACKET_LEN  (4 + DOWNWARD_MAX_PAYLOAD_LEN + 1)
 
 /* 下行消息类型定义 */
 typedef enum {
@@ -47,7 +49,7 @@ typedef struct {
     uint8_t payload_len;
     union {
         downward_payload_joints_cmd_t joints_cmd;
-        uint8_t raw_payload[64];
+        uint8_t raw_payload[DOWNWARD_MAX_PAYLOAD_LEN];
     } payload;
 } downward_frame_t;
 
@@ -66,7 +68,7 @@ typedef struct {
 
     uint8_t rx_msg_id;
     uint8_t rx_payload_len;
-    uint8_t rx_buf[64];
+    uint8_t rx_buf[DOWNWARD_MAX_PAYLOAD_LEN];
     uint8_t rx_idx;
     uint8_t calculated_checksum;
 } downward_parser_t;

@@ -29,7 +29,7 @@ void led_set(bool on)
 void led_toggle(void)
 {
     s_led_state = !s_led_state;
-    gpio_set_level(s_led_pin, s_led_state ? 1 : 0); // 切换 LED 状态
+    gpio_set_level(s_led_pin, s_led_state ? 0 : 1); // 低电平点亮
 }
 
 bool led_get_state(void)

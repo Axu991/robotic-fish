@@ -44,6 +44,7 @@ typedef struct {
     float r_[CPG_JOINTS_NUM];
     float x_[CPG_JOINTS_NUM];
     float p_[CPG_JOINTS_NUM];
+    float p_accel[CPG_JOINTS_NUM];
 
     /* 收敛增益参数 */
     float C_r;

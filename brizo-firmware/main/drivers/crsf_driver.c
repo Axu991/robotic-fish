@@ -19,7 +19,9 @@ static const char *TAG = "CRSF_DRIVER";
 
 // 静态变量
 static uart_port_t s_uart_num = UART_NUM_2;
-static crsf_channels_t s_channels = {0};
+static crsf_channels_t s_channels = {
+    .ch = {1500, 1500, 2000, 1500, 2000, 2000, 2000, 2000, 2000, 2000},
+};
 static bool s_data_ready = false;
 static SemaphoreHandle_t s_mutex = NULL;
 
@@ -72,107 +74,84 @@ static uint8_t crsf_crc8(uint8_t crc, uint8_t value)
 
 // ---------- 解析状态机 ----------
 typedef enum {
-    CRSF_STATE_IDLE,
-    CRSF_STATE_SYNC,
-    CRSF_STATE_LENGTH,
-    CRSF_STATE_TYPE,
-    CRSF_STATE_DATA,
-    CRSF_STATE_CRC
+    CRSF_STATE_WAIT_SYNC,
+    CRSF_STATE_WAIT_LENGTH,
+    CRSF_STATE_READ_BODY,
 } crsf_state_t;
 
-static crsf_state_t s_state = CRSF_STATE_IDLE;
-static uint8_t s_rx_buf[CRSF_MAX_PACKET_LEN];
-static uint8_t s_rx_index = 0;
+static crsf_state_t s_state = CRSF_STATE_WAIT_SYNC;
+static uint8_t s_frame_body[CRSF_MAX_PACKET_LEN];
+static uint8_t s_body_index = 0;
 static uint8_t s_packet_len = 0;
-static uint8_t s_crc = 0;
+
+static uint16_t crsf_raw_to_us(uint16_t raw)
+{
+    const uint16_t raw_min = 172;
+    const uint16_t raw_max = 1811;
+    if (raw < raw_min) raw = raw_min;
+    if (raw > raw_max) raw = raw_max;
+    return 1000U + (uint16_t)(((uint32_t)(raw - raw_min) * 1000U) / (raw_max - raw_min));
+}
+
+static void parse_rc_channels(const uint8_t *payload, size_t payload_len)
+{
+    if (payload_len < 22) return;
+
+    crsf_channels_t parsed;
+    for (int i = 0; i < CRSF_CHANNEL_COUNT; i++) {
+        const int bit = i * 11;
+        const int byte_idx = bit / 8;
+        const int bit_off = bit % 8;
+        uint32_t packed = (uint32_t)payload[byte_idx]
+                        | ((uint32_t)payload[byte_idx + 1] << 8)
+                        | ((uint32_t)payload[byte_idx + 2] << 16);
+        parsed.ch[i] = crsf_raw_to_us((packed >> bit_off) & 0x7FFU);
+    }
+
+    if (s_mutex != NULL) xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_channels = parsed;
+    s_data_ready = true;
+    if (s_mutex != NULL) xSemaphoreGive(s_mutex);
+}
 
 
 // ---------- 解析函数 ----------
 static void parse_crsf_byte(uint8_t byte)
 {
     switch (s_state) {
-        case CRSF_STATE_IDLE:
+        case CRSF_STATE_WAIT_SYNC:
             if (byte == CRSF_SYNC_BYTE) {
-                s_state = CRSF_STATE_SYNC;
-                s_rx_index = 0;
-                s_rx_buf[s_rx_index++] = byte;
-                s_crc = 0;
+                s_state = CRSF_STATE_WAIT_LENGTH;
             }
             break;
 
-        case CRSF_STATE_SYNC:
-            // 第二个字节是长度（不含同步字节）
-            s_rx_buf[s_rx_index++] = byte;
+        case CRSF_STATE_WAIT_LENGTH:
             s_packet_len = byte;
-            s_crc = crsf_crc8(s_crc, byte);
-            s_state = CRSF_STATE_LENGTH;
-            break;
-
-        case CRSF_STATE_LENGTH:
-            // 第三个字节是类型
-            s_rx_buf[s_rx_index++] = byte;
-            s_crc = crsf_crc8(s_crc, byte);
-            // 检查类型是否为 RC channels
-            if (byte == CRSF_FRAME_TYPE_RC) {
-                // 数据长度 = 总长度 - 2（类型+CRC）? 实际长度在第二个字节定义
-                // 对于 RC 帧，总长度=2+22+1=25? 但数据部分 22 字节
-                // 更准确：总长度 = 长度字段值 + 1（因为长度字段不包含自己）
-                // 所以数据部分长度 = 长度字段 - 1（类型占了1个字节）
-                uint8_t data_len = s_packet_len - 1; // 减去类型字节
-                if (data_len <= CRSF_MAX_PACKET_LEN) {
-                    s_state = CRSF_STATE_DATA;
-                } else {
-                    s_state = CRSF_STATE_IDLE;
-                }
+            s_body_index = 0;
+            if (s_packet_len < 2 || s_packet_len > CRSF_MAX_PACKET_LEN) {
+                s_state = CRSF_STATE_WAIT_SYNC;
             } else {
-                // 非 RC 帧，跳过
-                s_state = CRSF_STATE_IDLE;
+                s_state = CRSF_STATE_READ_BODY;
             }
             break;
 
-        case CRSF_STATE_DATA:
-            s_rx_buf[s_rx_index++] = byte;
-            s_crc = crsf_crc8(s_crc, byte);
-            // 数据部分长度 = s_packet_len - 1（类型已占）
-            if (s_rx_index - 3 == s_packet_len - 1) {
-                // 数据接收完毕，进入 CRC 校验
-                s_state = CRSF_STATE_CRC;
-            }
-            break;
-
-        case CRSF_STATE_CRC:
-            // 接收 CRC 字节
-            s_rx_buf[s_rx_index++] = byte;
-            // 校验 CRC
-            if (s_crc == byte) {
-                // 解析通道数据
-                // 数据起始位置：索引 3（同步、长度、类型之后）
-                const uint8_t *data = &s_rx_buf[3];
-                // 解析 16 个通道（每个通道 11 位）
-                // 但为了简化，我们只解析前 10 个
-                for (int i = 0; i < CRSF_CHANNEL_COUNT; i++) {
-                    uint32_t val = 0;
-                    int bit = i * 11;
-                    int byte_idx = bit / 8;
-                    int bit_off = bit % 8;
-
-                    val |= (uint32_t)data[byte_idx] << (bit_off);
-                    val |= (uint32_t)data[byte_idx + 1] << (bit_off + 8);
-                    val |= (uint32_t)data[byte_idx + 2] << (bit_off + 16);
-                    val &= 0x7FF; // 11 bits
-
-                    s_channels.ch[i] = 1000 + (uint16_t)(val * 1000 / 2047.0f); // 转换为约 1000~2000 范围
+        case CRSF_STATE_READ_BODY:
+            s_frame_body[s_body_index++] = byte;
+            if (s_body_index == s_packet_len) {
+                uint8_t crc = 0;
+                for (uint8_t i = 0; i < s_packet_len - 1; i++) {
+                    crc = crsf_crc8(crc, s_frame_body[i]);
                 }
-                // 更新标志
-                s_data_ready = true;
-            } else {
-                ESP_LOGW(TAG, "CRC error");
+                if (crc == s_frame_body[s_packet_len - 1]
+                        && s_frame_body[0] == CRSF_FRAME_TYPE_RC) {
+                    parse_rc_channels(&s_frame_body[1], s_packet_len - 2);
+                }
+                s_state = CRSF_STATE_WAIT_SYNC;
             }
-            s_state = CRSF_STATE_IDLE;
             break;
 
         default:
-            s_state = CRSF_STATE_IDLE;
+            s_state = CRSF_STATE_WAIT_SYNC;
             break;
     }
 }
@@ -218,15 +197,17 @@ void crsf_init(uart_port_t uart_num, gpio_num_t rx_pin, gpio_num_t tx_pin)
 
 bool crsf_get_channels(crsf_channels_t *channels)
 {
-    if (!s_data_ready || channels == NULL) return false;
+    if (channels == NULL) return false;
     if (s_mutex != NULL) {
         xSemaphoreTake(s_mutex, portMAX_DELAY);
     }
+    bool ready = s_data_ready;
     memcpy(channels, &s_channels, sizeof(crsf_channels_t));
+    s_data_ready = false;
     if (s_mutex != NULL) {
         xSemaphoreGive(s_mutex);
     }
-    return true;
+    return ready;
 }
 
 uint16_t crsf_get_channel(uint8_t index)

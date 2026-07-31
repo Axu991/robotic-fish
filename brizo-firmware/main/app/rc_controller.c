@@ -58,6 +58,10 @@ control_source_e rc_controller_update(const rc_input_data_t *input, cpg_handle_t
             for (int i = 0; i < CPG_JOINTS_NUM; i++) {
                 cpg->R[i] = 0.0f;
                 cpg->X[i] = 0.0f;
+                cpg->r[i] = 0.0f;
+                cpg->x[i] = 0.0f;
+                cpg->r_[i] = 0.0f;
+                cpg->x_[i] = 0.0f;
             }
             s_bootup_status = false; // 退出 AHC
         } 

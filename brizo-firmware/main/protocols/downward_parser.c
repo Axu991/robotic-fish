@@ -98,7 +98,8 @@ bool downward_parse_packet(const uint8_t *buf, size_t len, downward_frame_t *out
     uint8_t payload_len = buf[3];
 
     // 2. 检查长度匹配
-    if (len != (size_t)(4 + payload_len + 1)) {
+    if (payload_len > sizeof(out_frame->payload)
+            || len != (size_t)(4 + payload_len + 1)) {
         return false;
     }
 
@@ -116,6 +117,7 @@ bool downward_parse_packet(const uint8_t *buf, size_t len, downward_frame_t *out
     // 5. 复制解包数据
     out_frame->msg_id = msg_id;
     out_frame->payload_len = payload_len;
+    memset(&out_frame->payload, 0, sizeof(out_frame->payload));
     memcpy(&out_frame->payload, &buf[4], payload_len);
 
     return true;
